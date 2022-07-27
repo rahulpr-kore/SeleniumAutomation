@@ -1,5 +1,6 @@
 # Adding necessary imports
-from typing import List
+from lib2to3.pgen2 import driver
+from typing import Dict, List
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service as edgeservice
 from selenium.webdriver.edge.service import Service as chromeservice
@@ -44,7 +45,7 @@ class TranslateCore:
         # self.driver.get(self.microsoft_translation_url)
         
     def translate_text_to_lang(self, text="كيفكم", translation_lang_key="EN", \
-        use_single_service = False, use_microsoft=False)->List:        
+        use_single_service = False, use_microsoft=False)->Dict:        
         """
         Takes text as input and gives output using Microsoft and Google Translate
         @params:
@@ -53,26 +54,32 @@ class TranslateCore:
 
         """
         
-        output_translations = []
+        output_translations = {}
         if not use_single_service:
-            microsoft_translation = self.translate_using_microsoft_translate(text=text, translation_lang_key=translation_lang_key)
-            print(microsoft_translation)
+            self.driver.get(self.microsoft_translation_url)
+            output_translations["microsoft"] = self.translate_using_microsoft_translate(text=text, translation_lang_key=translation_lang_key)
+            print(output_translations["microsoft"])
             #Testing language translation other than english
-            self.translate_using_google_translate(text=text, translation_lang_key=translation_lang_key)
+            self.driver.get(self.google_translation_url)
+            output_translations["google"] = self.translate_using_google_translate(text=text, translation_lang_key=translation_lang_key)
+            
+        else: 
+            if use_microsoft:
+                self.driver.get(self.microsoft_translation_url)
+                output_translations["microsoft"] = self.translate_using_microsoft_translate(text=text, translation_lang_key=translation_lang_key)
+            
+            else:
+                self.driver.get(self.google_translation_url)
+                output_translations["google"] = self.translate_using_google_translate(text=text, translation_lang_key=translation_lang_key)
+        print(output_translations)
+        return output_translations
 
     def translate_using_microsoft_translate(self, text:str, translation_lang_key="EN")->str:
         # Opening the URL
-        self.driver.get(self.microsoft_translation_url)
+
         
         # Selecting output language
-        language_selection = None
-        try:
-            language_selection = os.getenv(translation_lang_key)
-        
-        except:
-            # Setting fallback in case of dict lookup failure
-            language_selection = "English"
-        
+        language_selection = os.getenv(translation_lang_key, default="English")
         # print(language_selection)
         # Setting translation language from dropdown
         output_language_dropdown = Select(self.driver.find_element(by="xpath", value=r'//select[@id="tta_tgtsl"]'))
@@ -89,29 +96,27 @@ class TranslateCore:
             continue
         
         translated_text = output_text_box.get_attribute('value')
+        input_text_box.clear()
         return translated_text
     
     # TODO Have to add language selection feature in Google Translate
     def translate_using_google_translate(self, text:str, translation_lang_key="EN"):
-        self.driver.get(self.google_translation_url)
+
         # Selecting output language
-        language_selection = None
-        try:
-            language_selection = os.getenv(translation_lang_key)
-        
-        except:
-            # Setting fallback in case of dict lookup failure
-            language_selection = "English"
-        
+        language_selection = os.getenv(translation_lang_key, default="English")
+        output_translation = ""
+
         if translation_lang_key == "EN":
             #TODO Directly enter the text and get the output
             select_input_text_box = self.driver.find_element(by="xpath", value=r'//textarea[@aria-label="Source text"]')
             select_input_text_box.send_keys(text)
             #While text shows as translating
-            wait = WebDriverWait(self.driver, 2)
+            wait = WebDriverWait(self.driver, 5)
             select_output_text_box = wait.until(ec.visibility_of_element_located((By.XPATH, r'//span[@class="Q4iAWc"]')))
             select_output_text_box = self.driver.find_element(by="xpath", value=r'//span[@class="Q4iAWc"]')
-            print(select_output_text_box.text)
+            output_translation = select_output_text_box.text
+            # print(select_output_text_box.text)
+            select_input_text_box.clear()
             
         else:
             select_language_from_dropdown = self.driver.find_element(by="xpath", value=r'//button[@jsname="zumM6d"]')
@@ -135,12 +140,48 @@ class TranslateCore:
             select_input_text_box.send_keys(text)
 
             #While text shows as translating
-            wait = WebDriverWait(self.driver, 2)
+            wait = WebDriverWait(self.driver, 5)
             select_output_text_box = wait.until(ec.visibility_of_element_located((By.XPATH, r'//span[@class="Q4iAWc"]')))
             # print(select_output_text_box)
             select_output_text_box = self.driver.find_element(by="xpath", value=r'//span[@class="Q4iAWc"]')
             # print(select_output_text_box)
-            print(select_output_text_box.text)
+            output_translation = select_output_text_box.text
+            # print(select_o  utput_text_box.text)
+            select_input_text_box.clear()
+        return output_translation
 
-    def process_excel(filepath="./Text.xlsx"):
-        pass
+    def process_excel(self, filepath="./Text.xlsx", \
+                        outputpath="./OutputText.xlsx",\
+                            translation_lang_key="EN"):
+        excel_entity = {
+            "Intent": [],
+            "Microsoft Translate": [],
+            "Google Transalte": []
+        }
+
+        df = pd.DataFrame.from_dict(excel_entity)
+        df_to_process = None
+        if os.path.exists(filepath):
+            if filepath.split(".")[-1] == "csv":
+                df_to_process = pd.read_csv(filepath)
+            elif filepath.split(".")[-1] == "xlsx":
+                df_to_process = pd.read_excel(filepath)
+            else:
+                return "[INFO] File format not supported currently"
+        else:
+            return "[INFO] No Input file found"
+        df_to_process_copy = df_to_process.fillna("Empty Utterance")
+        to_translate_list = df_to_process_copy["UTTERANCES"].to_list()
+        for val in to_translate_list:
+            if val == "Empty Utterance":
+                continue
+            output_json = self.translate_text_to_lang(text=val, use_single_service=False, \
+                                            translation_lang_key=translation_lang_key)
+            series_obj = pd.Series([val, output_json['microsoft'], output_json['google']], index=df.columns)
+            df = df.append(series_obj, ignore_index=True)
+            
+        
+        result = pd.concat([df_to_process, df], axis=1)
+        result.to_excel(outputpath)
+        self.driver.close()
+        return "[INFO] Processed all the Excel files"
