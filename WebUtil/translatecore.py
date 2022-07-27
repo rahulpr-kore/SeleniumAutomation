@@ -1,6 +1,5 @@
 # Adding necessary imports
-from lib2to3.pgen2 import driver
-from typing import Dict, List
+from typing import Dict
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service as edgeservice
 from selenium.webdriver.edge.service import Service as chromeservice
@@ -154,7 +153,7 @@ class TranslateCore:
                         outputpath="./OutputText.xlsx",\
                             translation_lang_key="EN"):
         excel_entity = {
-            "Intent": [],
+            "Bot Input": [],
             "Microsoft Translate": [],
             "Google Transalte": []
         }
