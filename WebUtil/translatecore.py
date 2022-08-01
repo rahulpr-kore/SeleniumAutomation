@@ -52,6 +52,7 @@ class TranslateCore:
         translation_lang : output translation lang (currently just supports to en)
 
         """
+        #TODO Optimize page refresh and create UI
         
         output_translations = {}
         if not use_single_service:
@@ -98,7 +99,6 @@ class TranslateCore:
         input_text_box.clear()
         return translated_text
     
-    # TODO Have to add language selection feature in Google Translate
     def translate_using_google_translate(self, text:str, translation_lang_key="EN"):
 
         # Selecting output language
@@ -106,7 +106,6 @@ class TranslateCore:
         output_translation = ""
 
         if translation_lang_key == "EN":
-            #TODO Directly enter the text and get the output
             select_input_text_box = self.driver.find_element(by="xpath", value=r'//textarea[@aria-label="Source text"]')
             select_input_text_box.send_keys(text)
             #While text shows as translating
