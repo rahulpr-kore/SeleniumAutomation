@@ -1,5 +1,5 @@
 # Adding necessary imports
-from typing import Dict
+from typing import Dict, List
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service as edgeservice
 from selenium.webdriver.edge.service import Service as chromeservice
@@ -148,16 +148,41 @@ class TranslateCore:
             select_input_text_box.clear()
         return output_translation
 
+    #Optimized functions for batch processing a list of utterances
+    def optimized_process(self, utterance_list:List=[], \
+                            translation_lang_key="EN", \
+                                use_both_services=True):
+
+        if use_both_services:
+            output_json = {}
+            google_translate_li = []
+            microsoft_translate_li = []
+            for text in utterance_list:
+                if text == "Empty Utterance":
+                    continue
+                self.driver.get(self.microsoft_translation_url)
+                microsoft_translate_li.append(self.translate_using_microsoft_translate(text=text, translation_lang_key=translation_lang_key))
+            
+            for text in utterance_list:
+                if text == "Empty Utterance":
+                    continue
+                self.driver.get(self.google_translation_url)
+                google_translate_li.append(self.translate_using_google_translate(text=text, translation_lang_key=translation_lang_key))
+            output_json["google"] = google_translate_li
+            output_json["microsoft"] = microsoft_translate_li
+            print(output_json)
+            return output_json
+
     def process_excel(self, filepath="./Text.xlsx", \
                         outputpath="./OutputText.xlsx",\
                             translation_lang_key="EN"):
-        excel_entity = {
-            "Bot Input": [],
-            "Microsoft Translate": [],
-            "Google Transalte": []
-        }
+        # excel_entity = {
+        #     "Bot Input": [],
+        #     "Microsoft Translate": [],
+        #     "Google Transalte": []
+        # }
 
-        df = pd.DataFrame.from_dict(excel_entity)
+        # df = pd.DataFrame.from_dict(excel_entity)
         df_to_process = None
         if os.path.exists(filepath):
             if filepath.split(".")[-1] == "csv":
@@ -170,16 +195,18 @@ class TranslateCore:
             return "[INFO] No Input file found"
         df_to_process_copy = df_to_process.fillna("Empty Utterance")
         to_translate_list = df_to_process_copy["UTTERANCES"].to_list()
-        for val in to_translate_list:
-            if val == "Empty Utterance":
-                continue
-            output_json = self.translate_text_to_lang(text=val, use_single_service=False, \
-                                            translation_lang_key=translation_lang_key)
-            series_obj = pd.Series([val, output_json['microsoft'], output_json['google']], index=df.columns)
-            df = df.append(series_obj, ignore_index=True)
+        # for val in to_translate_list:
+        #     if val == "Empty Utterance":
+        #         continue
+        #     output_json = self.translate_text_to_lang(text=val, use_single_service=False, \
+        #                                     translation_lang_key=translation_lang_key)
+        #     series_obj = pd.Series([val, output_json['microsoft'], output_json['google']], index=df.columns)
+        #     df = df.append(series_obj, ignore_index=True)
             
-        
+        output_json = self.optimized_process(to_translate_list,translation_lang_key=translation_lang_key)
+        df = pd.DataFrame.from_dict(output_json)
         result = pd.concat([df_to_process, df], axis=1)
         result.to_excel(outputpath)
         self.driver.close()
         return "[INFO] Processed all the Excel files"
+        
