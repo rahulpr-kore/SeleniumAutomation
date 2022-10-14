@@ -15,6 +15,7 @@ import pandas as pd
 from dotenv import load_dotenv
 import os
 load_dotenv()
+from tqdm import tqdm
 
 class TranslateCore:
     # Class params
@@ -99,7 +100,10 @@ class TranslateCore:
         input_text_box.clear()
         return translated_text
     
-    def translate_using_google_translate(self, text:str, translation_lang_key="EN"):
+    def translate_using_google_translate(self, text:str, translation_lang_key="EN", \
+                                            return_dummy=True):
+        if return_dummy == True:
+            return "[INFO] Returning Dummy dor Google Translate"
 
         # Selecting output language
         language_selection = os.getenv(translation_lang_key, default="English")
@@ -109,9 +113,9 @@ class TranslateCore:
             select_input_text_box = self.driver.find_element(by="xpath", value=r'//textarea[@aria-label="Source text"]')
             select_input_text_box.send_keys(text)
             #While text shows as translating
-            wait = WebDriverWait(self.driver, 5)
-            select_output_text_box = wait.until(ec.visibility_of_element_located((By.XPATH, r'//span[@class="Q4iAWc"]')))
-            select_output_text_box = self.driver.find_element(by="xpath", value=r'//span[@class="Q4iAWc"]')
+            wait = WebDriverWait(self.driver, 6)
+            select_output_text_box = wait.until(ec.visibility_of_element_located((By.XPATH, r'//span[@class="ryNqvb"]')))
+            select_output_text_box = self.driver.find_element(by="xpath", value=r'//span[@class="ryNqvb"]')
             output_translation = select_output_text_box.text
             # print(select_output_text_box.text)
             select_input_text_box.clear()
@@ -139,9 +143,9 @@ class TranslateCore:
 
             #While text shows as translating
             wait = WebDriverWait(self.driver, 5)
-            select_output_text_box = wait.until(ec.visibility_of_element_located((By.XPATH, r'//span[@class="Q4iAWc"]')))
+            select_output_text_box = wait.until(ec.visibility_of_element_located((By.XPATH, r'//span[@class="ryNqvb"]')))
             # print(select_output_text_box)
-            select_output_text_box = self.driver.find_element(by="xpath", value=r'//span[@class="Q4iAWc"]')
+            select_output_text_box = self.driver.find_element(by="xpath", value=r'//span[@class="ryNqvb"]')
             # print(select_output_text_box)
             output_translation = select_output_text_box.text
             # print(select_o  utput_text_box.text)
@@ -151,23 +155,26 @@ class TranslateCore:
     #Optimized functions for batch processing a list of utterances
     def optimized_process(self, utterance_list:List=[], \
                             translation_lang_key="EN", \
-                                use_both_services=True):
+                                use_both_services=True,
+                                return_dummy_for_google=True):
 
         if use_both_services:
             output_json = {}
             google_translate_li = []
             microsoft_translate_li = []
-            for text in utterance_list:
+            print("[INFO] Processing Microsoft Engine")
+            for idx, text in tqdm(enumerate(utterance_list), total=len(utterance_list) ):
                 if text == "Empty Utterance":
                     continue
                 self.driver.get(self.microsoft_translation_url)
                 microsoft_translate_li.append(self.translate_using_microsoft_translate(text=text, translation_lang_key=translation_lang_key))
-            
-            for text in utterance_list:
+            print("[INFO] Processing Google Engine")
+            for idx, text in tqdm(enumerate(utterance_list), total=len(utterance_list) ):
                 if text == "Empty Utterance":
                     continue
                 self.driver.get(self.google_translation_url)
-                google_translate_li.append(self.translate_using_google_translate(text=text, translation_lang_key=translation_lang_key))
+                google_translate_li.append(self.translate_using_google_translate(text=text, translation_lang_key=translation_lang_key, \
+                                        return_dummy=return_dummy_for_google))
             output_json["google"] = google_translate_li
             output_json["microsoft"] = microsoft_translate_li
             print(output_json)
@@ -175,7 +182,7 @@ class TranslateCore:
 
     def process_excel(self, filepath="./Text.xlsx", \
                         outputpath="./OutputText.xlsx",\
-                            translation_lang_key="EN"):
+                            translation_lang_key="EN", return_dummy_for_google=True):
         # excel_entity = {
         #     "Bot Input": [],
         #     "Microsoft Translate": [],
@@ -203,10 +210,12 @@ class TranslateCore:
         #     series_obj = pd.Series([val, output_json['microsoft'], output_json['google']], index=df.columns)
         #     df = df.append(series_obj, ignore_index=True)
             
-        output_json = self.optimized_process(to_translate_list,translation_lang_key=translation_lang_key)
+        output_json = self.optimized_process(to_translate_list,\
+                                                translation_lang_key=translation_lang_key, \
+                                                    return_dummy_for_google=return_dummy_for_google)
         df = pd.DataFrame.from_dict(output_json)
         result = pd.concat([df_to_process, df], axis=1)
-        result.to_excel(outputpath)
+        result.to_excel(outputpath, index=False)
         self.driver.close()
         return "[INFO] Processed all the Excel files"
         
